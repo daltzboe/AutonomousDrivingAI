@@ -11,11 +11,11 @@ class SteeringCNN(nn.Module):
             nn.Conv2d(36, 48, kernel_size=5, stride=2), nn.ReLU(),
             nn.Conv2d(48, 64, kernel_size=3), nn.ReLU(),
             nn.Conv2d(64, 64, kernel_size=3), nn.ReLU(),
-            nn.AdaptiveAvgPool2d((2, 4)),
+            nn.AdaptiveAvgPool2d((1, 4)),
             nn.Flatten(),
         )
         self.regressor = nn.Sequential(
-            nn.Linear(64 * 2 * 4, 100), nn.ReLU(),
+            nn.Linear(64 * 1 * 4, 100), nn.ReLU(),
             nn.Linear(100, 50), nn.ReLU(),
             nn.Linear(50, 10), nn.ReLU(),
             nn.Linear(10, 1), nn.Tanh(),
