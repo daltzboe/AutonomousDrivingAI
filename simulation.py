@@ -6,19 +6,23 @@ import pygame
 
 from environment import Environment
 from pathfinding import AStarPlanner
+from sensors import LidarSensor
 from vehicle import Vehicle
 
 
 class Simulation:
     def __init__(self) -> None:
         pygame.init()
-        pygame.display.set_caption("Autonomous Driving AI | Phase 2: A* Navigation")
+        pygame.display.set_caption("Autonomous Driving AI | Phase 3: LiDAR Perception")
         self.screen = pygame.display.set_mode((Environment.WIDTH, Environment.HEIGHT))
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("consolas", 18)
         self.environment = Environment()
         self.vehicle = Vehicle(*self.environment.start_position)
         self.planner = AStarPlanner(self.environment)
+        self.lidar = LidarSensor()
+        self.sensor_readings = self.lidar.scan(self.vehicle, self.environment)
+        self.lidar_enabled = True
         self.route: list[tuple[float, float]] = []
         self.autopilot = False
         self.goal_reached = False
@@ -57,6 +61,8 @@ class Simulation:
                         self.status = "AUTOPILOT PAUSED"
                     elif not self.goal_reached:
                         self.start_autopilot()
+                elif event.key == pygame.K_l:
+                    self.lidar_enabled = not self.lidar_enabled
 
     def update(self, dt: float) -> None:
         if self.autopilot:
@@ -68,6 +74,8 @@ class Simulation:
             keys = pygame.key.get_pressed()
             self.vehicle.update(keys, dt, self.environment)
 
+        self.sensor_readings = self.lidar.scan(self.vehicle, self.environment)
+
     def draw_route(self) -> None:
         if len(self.route) >= 2:
             points = [(round(x), round(y)) for x, y in self.route]
@@ -76,10 +84,24 @@ class Simulation:
                 pygame.draw.circle(self.screen, (245, 245, 245), point, 5)
 
     def draw_hud(self) -> None:
+        obstacles = [
+            reading.distance
+            for reading in self.sensor_readings
+            if reading.hit_type == "obstacle"
+        ]
+        road_edges = [
+            reading.distance
+            for reading in self.sensor_readings
+            if reading.hit_type == "road_edge"
+        ]
+        nearest_obstacle = f"{min(obstacles):.0f}px" if obstacles else "none"
+        nearest_edge = f"{min(road_edges):.0f}px" if road_edges else "none"
+
         lines = [
-            "PHASE 2: AUTONOMOUS A* NAVIGATION",
-            "P: toggle autopilot | WASD / Arrows: manual | R: reset | ESC: quit",
+            "PHASE 3: LIDAR ENVIRONMENTAL PERCEPTION",
+            "P: autopilot | L: LiDAR rays | WASD / Arrows: manual | R: reset | ESC: quit",
             self.status,
+            f"LiDAR: nearest obstacle {nearest_obstacle} | nearest road edge {nearest_edge}",
         ]
         for index, line in enumerate(lines):
             surface = self.font.render(line, True, (245, 245, 245))
@@ -101,6 +123,8 @@ class Simulation:
             self.update(dt)
             self.environment.draw(self.screen)
             self.draw_route()
+            if self.lidar_enabled:
+                self.lidar.draw(self.screen, self.vehicle, self.sensor_readings)
             self.vehicle.draw(self.screen)
             self.draw_hud()
             pygame.display.flip()
