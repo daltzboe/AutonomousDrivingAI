@@ -8,7 +8,7 @@ class Environment:
     HEIGHT = 700
 
     GRASS = (54, 125, 75)
-    ROAD = ( sixty := 60, 60, 64)
+    ROAD = (60, 60, 64)
     ROAD_EDGE = (225, 225, 225)
     LANE = (245, 205, 65)
     OBSTACLE = (220, 75, 65)
