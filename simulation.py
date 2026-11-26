@@ -1,44 +1,95 @@
-"""Pygame application loop for the driving simulation."""
+"""Pygame application loop for the autonomous driving simulation."""
 
 import sys
+
 import pygame
 
 from environment import Environment
+from pathfinding import AStarPlanner
 from vehicle import Vehicle
 
 
 class Simulation:
     def __init__(self) -> None:
         pygame.init()
-        pygame.display.set_caption("Autonomous Driving AI | Phase 1")
+        pygame.display.set_caption("Autonomous Driving AI | Phase 2: A* Navigation")
         self.screen = pygame.display.set_mode((Environment.WIDTH, Environment.HEIGHT))
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont("consolas", 18)
         self.environment = Environment()
         self.vehicle = Vehicle(*self.environment.start_position)
+        self.planner = AStarPlanner(self.environment)
+        self.route: list[tuple[float, float]] = []
+        self.autopilot = False
+        self.goal_reached = False
+        self.status = "MANUAL MODE"
         self.running = True
+
+    def start_autopilot(self) -> None:
+        goal = self.environment.goal_rect.center
+        route = self.planner.find_path((self.vehicle.x, self.vehicle.y), goal)
+
+        if not route:
+            self.status = "NO SAFE ROUTE FOUND"
+            self.autopilot = False
+            return
+
+        self.route = route
+        self.vehicle.set_path(route)
+        self.autopilot = True
+        self.goal_reached = False
+        self.status = "AUTOPILOT: A* ROUTE ACTIVE"
 
     def handle_events(self) -> None:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_r:
-                self.vehicle.reset(*self.environment.start_position)
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    self.vehicle.reset(*self.environment.start_position)
+                    self.route = []
+                    self.autopilot = False
+                    self.goal_reached = False
+                    self.status = "MANUAL MODE"
+                elif event.key == pygame.K_p:
+                    if self.autopilot:
+                        self.autopilot = False
+                        self.status = "AUTOPILOT PAUSED"
+                    elif not self.goal_reached:
+                        self.start_autopilot()
 
     def update(self, dt: float) -> None:
-        # Temporary manual controls let us test the environment before AI navigation.
-        keys = pygame.key.get_pressed()
-        self.vehicle.update(keys, dt, self.environment)
+        if self.autopilot:
+            if self.vehicle.follow_path(dt, self.environment):
+                self.autopilot = False
+                self.goal_reached = True
+                self.status = "DESTINATION REACHED!"
+        else:
+            keys = pygame.key.get_pressed()
+            self.vehicle.update(keys, dt, self.environment)
+
+    def draw_route(self) -> None:
+        if len(self.route) >= 2:
+            points = [(round(x), round(y)) for x, y in self.route]
+            pygame.draw.lines(self.screen, (70, 220, 255), False, points, 5)
+            for point in points[1:-1]:
+                pygame.draw.circle(self.screen, (245, 245, 245), point, 5)
 
     def draw_hud(self) -> None:
         lines = [
-            "PHASE 1: SIMULATION ENVIRONMENT",
-            "WASD / Arrow keys: move test vehicle | R: reset | ESC: quit",
-            "AI navigation will be added in Phase 2.",
+            "PHASE 2: AUTONOMOUS A* NAVIGATION",
+            "P: toggle autopilot | WASD / Arrows: manual | R: reset | ESC: quit",
+            self.status,
         ]
         for index, line in enumerate(lines):
             surface = self.font.render(line, True, (245, 245, 245))
-            self.screen.blit(surface, (18, 16 + index * 25))
+            background = pygame.Surface(
+                (surface.get_width() + 12, surface.get_height() + 6),
+                pygame.SRCALPHA,
+            )
+            background.fill((20, 25, 30, 185))
+            self.screen.blit(background, (12, 12 + index * 29))
+            self.screen.blit(surface, (18, 15 + index * 29))
 
     def run(self) -> None:
         while self.running:
@@ -46,11 +97,17 @@ class Simulation:
             self.handle_events()
             if pygame.key.get_pressed()[pygame.K_ESCAPE]:
                 self.running = False
+
             self.update(dt)
             self.environment.draw(self.screen)
+            self.draw_route()
             self.vehicle.draw(self.screen)
             self.draw_hud()
             pygame.display.flip()
 
         pygame.quit()
         sys.exit()
+
+
+if __name__ == "__main__":
+    Simulation().run()
