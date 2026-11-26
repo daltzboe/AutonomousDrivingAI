@@ -2,7 +2,7 @@ import pytest
 from autodrive.metrics import steering_mae, summarize_episodes
 
 def test_steering_mae():
-    assert steering_mae([0.0, 0.5, -0.5], [0.1, 0.4, -0.25]) == pytest.approx(0.0833333)
+    assert steering_mae([0.0, 0.5, -0.5], [0.1, 0.4, -0.25]) == pytest.approx(0.15)
 
 def test_episode_metrics():
     rows = [
