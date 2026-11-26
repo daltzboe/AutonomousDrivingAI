@@ -1,70 +1,121 @@
-# Autonomous Driving AI Simulation
+# Autonomous Driving Simulation — Research Project
 
-A 2D top-down driving simulator for experimenting with autonomous vehicle navigation and decision-making in a controlled environment.
+**Research question (from our midterm):** Can we effectively train and evaluate autonomous driving AI in a simulated environment without exposing real vehicles or people to safety risks?
 
-## Project goal
+This repository implements the project described in the midterm presentation. It is not a feature-rich game or a custom 2D driving engine. The experiment uses **CARLA**, compares its **BasicAgent** rule-based baseline with a small **camera-based imitation-learning CNN**, and evaluates both on repeatable simulated routes.
 
-Build a simulated vehicle that can perceive its surroundings, plan a route, respond to obstacles, and reach a destination. The project is developed in phases, starting with a working Pygame environment and progressing toward more advanced autonomous-driving behavior.
+## Research scope
 
-## Technology
+1. **Perception:** front-facing RGB camera images from CARLA.
+2. **Baseline:** CARLA BasicAgent (predefined route, PID control, obstacle response).
+3. **Learning method:** supervised imitation learning; a CNN predicts steering from a camera frame. Demonstration labels come from BasicAgent driving in simulation.
+4. **Evaluation:** steering MAE, collision rate, average lane deviation, and route completion.
+5. **Safety:** all training and testing are performed in simulation.
 
-- Python 3.13
-- Pygame for the visual simulation
-- NumPy for numerical operations and future AI components
-- A* search for grid-based route planning
-- Simulated LiDAR ray casting for environmental perception
-- Q-learning as a possible future extension
+The midterm also lists generative world models, reasoning/trajectory planning, and camera/LiDAR/radar fusion as possible improvements. Those are **future-work ideas**, not requirements for this first experiment.
 
-## Setup on Windows
+## Reproducible setup (Windows + IntelliJ)
 
-This project has been tested with Python 3.13.17.
+The presentation specifically names CARLA BasicAgent. To keep that API and the examples aligned, this starter pins the legacy-compatible **CARLA 0.9.16** server/client. CARLA 1.x has a changed API; do not mix a 1.x server with this 0.9.16 client.
 
-1. Open the repository folder in IntelliJ IDEA.
-2. Create and activate a virtual environment:
+### Hardware check first
 
-   ```powershell
-   py -3.13 -m venv .venv313
-   .\.venv313\Scripts\Activate.ps1
-   ```
+CARLA is a substantial 3D simulator. The official packaged-install guide recommends a dedicated GPU around NVIDIA RTX 2070-class or better, at least 8 GB VRAM, and roughly 20 GB of simulator storage. If this computer does not meet that, run CARLA on a lab computer or another GPU machine and connect the Python client remotely; the simulator and training client can run on separate computers.
 
-3. Install dependencies:
+### Python environment
 
-   ```powershell
-   python -m pip install -r requirements.txt
-   ```
+CARLA 0.9.16's documented Python client wheels support Python versions through 3.12. Use a **separate Python 3.12 environment** for this project; keep the existing .venv313 for the archived Pygame prototype if you still need it.
 
-4. Run the simulation:
+1. Install Python 3.12 (64-bit) and download/extract the CARLA 0.9.16 Windows package from the official CARLA release.
+2. In the repository terminal:
 
    ```powershell
-   python main.py
+   py -3.12 -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   python -m pip install --upgrade pip
+   pip install -r requirements.txt
    ```
 
-## Controls
+3. Set `CARLA_ROOT` to the extracted CARLA package directory (the folder containing `CarlaUE4.exe`):
 
-- **P**: start or pause A* autopilot.
-- **L**: show or hide LiDAR sensor rays.
-- **WASD / Arrow keys**: drive manually when autopilot is off.
-- **R**: reset the vehicle to the starting position.
-- **ESC**: quit.
+   ```powershell
+   $env:CARLA_ROOT = "D:\Simulators\CARLA_0.9.16"
+   ```
 
-## LiDAR visualization
+   Use your actual extraction path. The project adds CARLA's PythonAPI agent directory to the import path.
 
-The simulated LiDAR casts 24 rays around the vehicle, spaced 15 degrees apart, with a maximum range of 240 pixels.
+4. Launch `CarlaUE4.exe`. Leave the server running. Default client ports are 2000 and 2001.
+5. In IntelliJ, open the project and select `.venv\Scripts\python.exe` as the project interpreter.
 
-- **Red rays**: an obstacle was detected.
-- **Yellow rays**: a road boundary was detected.
-- **Green rays**: no object or road boundary was detected within sensor range.
+## Workflow
 
-The HUD reports the nearest detected obstacle and road edge. The sensor readings are refreshed as the vehicle moves.
+### 0 — Verify the environment
 
-## Development phases
+```powershell
+python -m autodrive.check_environment
+```
 
-1. **Simulation environment:** road layout, vehicle, destination, obstacles, and manual controls.
-2. **A* autonomous navigation:** grid-based route planning, obstacle-aware waypoints, and vehicle steering.
-3. **Environmental perception:** simulated LiDAR, obstacle-distance readings, and road-boundary detection. The next milestone is using perception data to influence driving decisions.
-4. **Learning extension:** optional reinforcement learning and model training.
-5. **Evaluation:** success rate, route length, travel time, and collision count.
+### 1 — Record expert demonstrations
 
-## Current status
+The collector uses BasicAgent to drive a randomly selected spawn-point route. It saves the camera frame and the expert vehicle-control/state label for each simulation frame.
 
-Phases 1 and 2 are implemented. The first Phase 3 perception milestone adds a 24-ray LiDAR sensor. Press **L** to show or hide its rays and **P** to run the A* autopilot. Manual driving remains available when autopilot is off.
+```powershell
+python -m autodrive.collect_expert --episodes 5 --max-steps 2500
+```
+
+Output is written to `data/demonstrations/` (CSV metadata plus image files). The data is generated by this project in CARLA; it is not presented as a downloaded public dataset.
+
+### 2 — Train the imitation model
+
+```powershell
+python -m autodrive.train --epochs 12 --batch-size 32
+```
+
+The model and training summary are saved under `artifacts/`. Training uses a deterministic train/validation split. The held-out steering MAE is reported separately from driving performance.
+
+### 3 — Evaluate both approaches
+
+```powershell
+python -m autodrive.evaluate --episodes 5 --max-steps 2500
+```
+
+The evaluation runs BasicAgent and the trained CNN controller on the same selected maps/episode protocol and writes raw episode results plus aggregate metrics to `results/`.
+
+## Metrics (as defined in the presentation)
+
+- **Steering Error (MAE):** absolute difference between predicted and recorded steering commands, averaged over held-out demonstration samples.
+- **Collision Rate:** percentage of evaluation episodes with at least one collision.
+- **Lane Deviation:** average lateral distance from the map's lane center, in meters.
+- **Route Completion:** percentage of assigned routes completed before the episode step limit.
+
+No benchmark numbers are included until actual CARLA runs are completed. Do not use illustrative values as results.
+
+## Project layout
+
+```
+src/autodrive/
+  config.py          Shared paths and experiment settings
+  carla_support.py   Version-aware connection and BasicAgent import
+  collect_expert.py  CARLA camera + BasicAgent data collection
+  dataset.py         Image/steering dataset
+  model.py           Compact CNN steering regressor
+  train.py           Training, validation, checkpointing
+  metrics.py         Presentation metrics and aggregation
+  evaluate.py        BasicAgent vs learned-controller episodes
+  check_environment.py
+tests/               Unit tests that do not require a running CARLA server
+```
+
+## Research integrity
+
+- Keep the route protocol, maps, weather, camera setup, and episode limits fixed between approaches.
+- Record random seeds and configuration with each run.
+- Report failed spawns and simulator errors; do not silently discard failed episodes.
+- Steering MAE is a supervised prediction metric. It is not a substitute for collision, lane, or route metrics.
+- The current model is a small educational baseline, not a road-ready autonomous-driving system.
+
+## References
+
+- Bojarski et al. (2016), *End to End Learning for Self-Driving Cars* (NVIDIA).
+- CARLA, *An Open Urban Driving Simulator*, Dosovitskiy et al. (2017).
+- CARLA official documentation: installation, Python API, sensors, and BasicAgent.

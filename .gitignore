@@ -1,11 +1,16 @@
+# Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
 .venv/
 venv/
-env/
-.idea/
-*.iml
-.DS_Store
-Thumbs.db
-results/*.csv
-results/*.png
+.env
+
+# Generated data and experiment outputs (do not commit large artifacts)
+data/demonstrations/
+artifacts/
+results/
+logs/
+*.pth
+*.pt
+*.csv
