@@ -46,7 +46,7 @@ def run_episode(mode, episode, max_steps, carla, world, BasicAgent, model, devic
             else:
                 image = images.get(timeout=3)
                 rgb = np.frombuffer(image.raw_data, dtype=np.uint8).reshape(
-                    (image.height, image.width, 4))[:, :, :3]
+                    (image.height, image.width, 4))[:, :, :3][:, :, ::-1].copy()
                 pil = Image.fromarray(rgb).resize((200, 66))
                 tensor = torch.from_numpy(np.asarray(pil, dtype=np.float32) / 255).permute(
                     2, 0, 1).unsqueeze(0).to(device)
