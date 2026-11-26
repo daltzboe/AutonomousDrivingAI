@@ -1,51 +1,58 @@
 # Autonomous Driving AI Simulation
 
-A group AI project exploring autonomous vehicle navigation and decision-making in a controlled 2D environment.
+A 2D top-down driving simulator for experimenting with autonomous vehicle navigation and decision-making in a controlled environment.
 
 ## Project goal
 
-Build a 2D top-down driving simulator in which an autonomous vehicle can plan a route, respond to obstacles and traffic conditions, and reach a destination. The project starts with a working simulation environment, then adds AI pathfinding and decision-making.
+Build a simulated vehicle that can plan a route, avoid obstacles, and reach a destination. The project is developed in phases, starting with a working Pygame environment and progressing toward more advanced autonomous-driving behavior.
 
 ## Technology
 
-- Python
+- Python 3.13
 - Pygame for the visual simulation
-- NumPy for numerical operations
-- A* search for route planning (planned)
-- Q-learning as an optional extension (planned)
+- NumPy for numerical operations and future AI components
+- A* search for grid-based route planning
+- Q-learning as a possible future extension
 
 ## Setup on Windows
 
-1. Clone this repository and open the folder in IntelliJ IDEA.
+This project has been tested with Python 3.13.17.
+
+1. Open the repository folder in IntelliJ IDEA.
 2. Create and activate a virtual environment:
 
-   python -m venv .venv
-   .venv\\Scripts\\Activate.ps1
+   ```powershell
+   py -3.13 -m venv .venv313
+   .\.venv313\Scripts\Activate.ps1
+   ```
 
 3. Install dependencies:
 
+   ```powershell
    python -m pip install -r requirements.txt
+   ```
 
 4. Run the simulation:
 
+   ```powershell
    python main.py
+   ```
 
-## Phase 1 controls
+## Controls
 
-- WASD or arrow keys: move the test vehicle.
-- R: reset the vehicle to its starting position.
-- ESC: quit.
+- **P**: start or pause A* autopilot.
+- **WASD / Arrow keys**: drive manually when autopilot is off.
+- **R**: reset the vehicle to the starting position.
+- **ESC**: quit.
 
-Manual movement is temporary and exists only to test the environment. Autonomous navigation will be implemented in a later phase.
+## Development phases
 
-## Planned development phases
+1. **Simulation environment:** road layout, vehicle, destination, obstacles, and manual controls.
+2. **A* autonomous navigation:** grid-based route planning, obstacle-aware waypoints, and vehicle steering.
+3. **Autonomous decisions:** sensor simulation, obstacle response, traffic signals, and route updates.
+4. **Learning extension:** optional reinforcement learning and model training.
+5. **Evaluation:** success rate, route length, travel time, and collision count.
 
-1. Environment: road layout, vehicle, destination, and obstacles.
-2. AI navigation: grid representation and A* pathfinding.
-3. Autonomous decisions: obstacle response, traffic signals, and route updates.
-4. Learning extension: optional reinforcement learning.
-5. Evaluation: success rate, route length, travel time, and collision count.
+## Current status
 
-## Project status
-
-Phase 1 foundation: Pygame application structure, road environment, destination, obstacles, and temporary test-vehicle controls. AI navigation is not implemented yet.
+Phase 1 and the first Phase 2 milestone are implemented. Press **P** to have the vehicle calculate and follow an A* route from its current position to the destination. Manual driving remains available when autopilot is paused.
