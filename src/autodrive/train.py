@@ -2,7 +2,6 @@
 import argparse
 import csv
 import random
-from pathlib import Path
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, Subset
@@ -20,13 +19,24 @@ def main():
     args = parser.parse_args()
     csv_path = SETTINGS.data_dir / "labels.csv"
     dataset = SteeringDataset(csv_path)
-    indices = list(range(len(dataset)))
-    random.Random(args.seed).shuffle(indices)
-    split = max(1, int(0.8 * len(indices)))
-    if split >= len(indices):
-        split = len(indices) - 1
-    train_loader = DataLoader(Subset(dataset, indices[:split]), batch_size=args.batch_size, shuffle=True)
-    valid_loader = DataLoader(Subset(dataset, indices[split:]), batch_size=args.batch_size, shuffle=False)
+
+    # Split by entire drive episodes, not adjacent frames. This reduces leakage
+    # from nearly identical consecutive images into both train and validation.
+    with csv_path.open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    episode_ids = sorted({row["episode"] for row in rows})
+    if len(episode_ids) < 2:
+        raise ValueError("Collect at least two completed/attempted episodes for an episode-wise holdout.")
+    random.Random(args.seed).shuffle(episode_ids)
+    validation_count = max(1, round(0.2 * len(episode_ids)))
+    validation_episodes = set(episode_ids[:validation_count])
+    train_indices = [i for i, row in enumerate(rows) if row["episode"] not in validation_episodes]
+    valid_indices = [i for i, row in enumerate(rows) if row["episode"] in validation_episodes]
+
+    generator = torch.Generator().manual_seed(args.seed)
+    train_loader = DataLoader(Subset(dataset, train_indices), batch_size=args.batch_size,
+                              shuffle=True, generator=generator)
+    valid_loader = DataLoader(Subset(dataset, valid_indices), batch_size=args.batch_size, shuffle=False)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SteeringCNN().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
@@ -51,19 +61,21 @@ def main():
                 predictions.extend(model(images.to(device)).cpu().tolist())
                 targets_all.extend(targets.tolist())
         mae = steering_mae(predictions, targets_all)
-        row = {"epoch": epoch + 1, "train_mse": sum(train_losses) / len(train_losses), "validation_steering_mae": mae}
+        row = {"epoch": epoch + 1, "train_mse": sum(train_losses) / len(train_losses),
+               "validation_steering_mae": mae}
         history.append(row)
         print(row)
         if mae < best_mae:
             best_mae = mae
             torch.save({"model_state_dict": model.state_dict(), "image_width": 200,
-                        "image_height": 66, "seed": args.seed, "epoch": epoch + 1},
+                        "image_height": 66, "seed": args.seed,
+                        "validation_episodes": sorted(validation_episodes), "epoch": epoch + 1},
                        SETTINGS.artifacts_dir / "steering_cnn.pth")
     with (SETTINGS.artifacts_dir / "training_history.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=history[0].keys())
         writer.writeheader()
         writer.writerows(history)
-    print(f"Best held-out steering MAE: {best_mae:.6f}")
+    print(f"Best held-out episode-wise steering MAE: {best_mae:.6f}")
 
 if __name__ == "__main__":
     main()
